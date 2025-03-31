@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <title>Mini Test Zdolności Muzycznych</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 2rem;
+      background-color: #f4f4f4;
+    }
+    h1, h2 {
+      color: #333;
+    }
+    section {
+      background-color: #fff;
+      padding: 1rem;
+      margin-bottom: 1.5rem;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    audio {
+      display: block;
+      margin: 1rem 0;
+    }
+    label {
+      display: block;
+      margin-top: 0.5rem;
+    }
+    button {
+      margin-top: 1rem;
+      padding: 0.5rem 1rem;
+      font-size: 1rem;
+    }
+  </style>
+</head>
+<body>
+  <h1>Test Zdolności Muzycznych</h1>
+
+  <section>
+    <h2>1. Rozpoznawanie wysokości dźwięku</h2>
+    <p>Odsłuchaj dwa dźwięki:</p>
+    <audio controls src="sounds/high_low_1.wav"></audio>
+    <label><input type="radio" name="pitch1"> Wyższy</label>
+    <label><input type="radio" name="pitch1"> Niższy</label>
+    <label><input type="radio" name="pitch1"> Taki sam</label>
+  </section>
+
+  <section>
+    <h2>2. Pamięć muzyczna</h2>
+    <p>Zapamiętaj melodię:</p>
+    <audio controls src="sounds/melody_base.wav"></audio>
+    <p>Wybierz, która z poniższych była identyczna:</p>
+    <audio controls src="sounds/melody_a.wav"></audio>
+    <label><input type="radio" name="melody"> A</label>
+    <audio controls src="sounds/melody_b.wav"></audio>
+    <label><input type="radio" name="melody"> B</label>
+    <audio controls src="sounds/melody_c.wav"></audio>
+    <label><input type="radio" name="melody"> C</label>
+  </section>
+
+  <section>
+    <h2>3. Rytm</h2>
+    <p>Odsłuchaj rytm i powtórz go klaszcząc:</p>
+    <audio controls src="sounds/rhythm_1.wav"></audio>
+  </section>
+
+  <section>
+    <h2>4. Intonacja</h2>
+    <p>Zaśpiewaj dźwięk po jego usłyszeniu:</p>
+    <audio controls src="sounds/note_c.wav"></audio>
+  </section>
+
+  <section>
+    <h2>5. Rozpoznawanie interwałów</h2>
+    <p>Jaką odległość słychać między dwoma dźwiękami?</p>
+    <audio controls src="sounds/interval_c_to_e.wav"></audio>
+    <label><input type="radio" name="interval"> Sekunda</label>
+    <label><input type="radio" name="interval"> Tercja</label>
+    <label><input type="radio" name="interval"> Kwarta</label>
+  </section>
+
+  <section>
+    <h2>6. Rozpoznawanie instrumentów</h2>
+    <p>Jaki instrument słyszysz?</p>
+    <audio controls src="sounds/instrument_violin.wav"></audio>
+    <label><input type="radio" name="instrument"> Skrzypce</label>
+    <label><input type="radio" name="instrument"> Gitara</label>
+    <label><input type="radio" name="instrument"> Trąbka</label>
+  </section>
+
+  <button onclick="alert('Test zakończony! Możesz teraz omówić wyniki lub powtórzyć.')">Zakończ test</button>
+</body>
+</html>
