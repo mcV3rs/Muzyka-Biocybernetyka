@@ -3,6 +3,82 @@
 <head>
   <meta charset="UTF-8">
   <title>Mini Test Zdolności Muzycznych</title>
+  <script>
+    let mediaRecorder;
+    let audioChunks = [];
+
+    function startRecording(question) {
+      navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
+        mediaRecorder = new MediaRecorder(stream);
+        mediaRecorder.start();
+
+        mediaRecorder.ondataavailable = event => {
+          audioChunks.push(event.data);
+        };
+
+        mediaRecorder.onstop = () => {
+          let audioBlob = new Blob(audioChunks, { type: "audio/wav" });
+          let formData = new FormData();
+          formData.append("file", audioBlob, question + ".wav");
+
+          fetch("/upload", { method: "POST", body: formData })
+            .then(response => response.json())
+            .then(data => {
+              if (data.correct) {
+                document.getElementById(question + "_result").innerHTML = "✅ Poprawnie!";
+              } else {
+                document.getElementById(question + "_result").innerHTML = "❌ Spróbuj ponownie.";
+              }
+            });
+        };
+
+        document.getElementById(question + "_status").innerText = "Nagrywanie...";
+      });
+    }
+
+    function stopRecording(question) {
+      mediaRecorder.stop();
+      document.getElementById(question + "_status").innerText = "Nagrywanie zakończone.";
+      audioChunks = [];
+    }
+    
+
+    function checkResults() {
+    let score = 0;
+
+    // Sprawdzenie odpowiedzi z nagrań
+    if (document.getElementById("rhythm_result").innerText.includes("✅")) {
+      score++;
+    }
+    if (document.getElementById("intonation_result").innerText.includes("✅")) {
+      score++;
+    }
+
+    // Poprawne odpowiedzi dla pytań wielokrotnego wyboru
+    let correctAnswers = {
+      "pitch1": 0,   // np. indeks poprawnej odpowiedzi
+      "melody": 1,
+      "interval": 1,
+      "instrument": 0
+    };
+
+    Object.keys(correctAnswers).forEach(question => {
+      let options = document.getElementsByName(question);
+      options.forEach((option, index) => {
+        if (index === correctAnswers[question]) {
+          option.parentElement.style.color = "green"; // Poprawna odpowiedź - zielona
+        } else if (option.checked) {
+          option.parentElement.style.color = "red"; // Błędnie zaznaczona odpowiedź - czerwona
+        }
+        if (option.checked && index === correctAnswers[question]) {
+          score++;
+        }
+      });
+    });
+
+    alert("Twój wynik: " + score + " punktów!");
+  }
+  </script>
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -63,12 +139,20 @@
     <h2>3. Rytm</h2>
     <p>Odsłuchaj rytm i powtórz go klaszcząc:</p>
     <audio controls src="sounds/rhythm_1.wav"></audio>
+    <button onclick="startRecording('rhythm')">Nagrywaj</button>
+    <button onclick="stopRecording('rhythm')">Zatrzymaj</button>
+    <p id="rhythm_status"></p>
+    <p id="rhythm_result"></p>
   </section>
 
   <section>
     <h2>4. Intonacja</h2>
     <p>Zaśpiewaj dźwięk po jego usłyszeniu:</p>
     <audio controls src="sounds/note_c.wav"></audio>
+    <button onclick="startRecording('intonation')">Nagrywaj</button>
+    <button onclick="stopRecording('intonation')">Zatrzymaj</button>
+    <p id="intonation_status"></p>
+    <p id="intonation_result"></p>
   </section>
 
   <section>
@@ -89,6 +173,6 @@
     <label><input type="radio" name="instrument"> Trąbka</label>
   </section>
 
-  <button onclick="alert('Test zakończony! Możesz teraz omówić wyniki lub powtórzyć.')">Zakończ test</button>
+  <button onclick="checkResults()">Sprawdź wynik</button>
 </body>
 </html>
