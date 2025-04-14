@@ -3,7 +3,7 @@ from scipy.io.wavfile import write
 import os
 
 # Ustawienia folderu wyjściowego
-output_dir = "sounds"
+output_dir = "static/sounds"
 os.makedirs(output_dir, exist_ok=True)
 
 # Funkcja do generowania tonu
