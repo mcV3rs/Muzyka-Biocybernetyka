@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <title>Porównanie Dźwięku</title>
+  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 2rem;
+      background-color: #f4f4f4;
+    }
+    h1 {
+      color: #222;
+    }
+    button {
+      margin: 1rem 1rem 1rem 0;
+      padding: 0.5rem 1rem;
+      font-size: 1rem;
+    }
+    #waveformPlot {
+      margin-top: 2rem;
+    }
+    label {
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <h1>Porównanie Dźwięku</h1>
+
+  <p>🔊 Dźwięk wzorcowy:</p>
+  <audio id="refAudio" controls src="/static/sounds/rhythm_1.wav"></audio>
+
+  <div>
+    <button onclick="startRecording()">🎙 Nagrywaj</button>
+    <button onclick="stopRecording()">⏹ Zatrzymaj</button>
+    <button onclick="playUserRecording()">▶️ Odtwórz nagranie użytkownika</button>
+    <button onclick="autoAlign()">🤖 Dopasuj automatycznie</button>
+  </div>
+
+  <div>
+    <label for="offsetRefSlider">🕒 Przesunięcie wzorca (s): </label>
+    <input type="range" id="offsetRefSlider" min="-5" max="5" step="0.01" value="0" oninput="updateRefOffset(this.value)">
+    <span id="offsetRefValue">0.00</span>s
+  </div>
+
+  <div>
+    <label for="offsetUserSlider">🎤 Przesunięcie użytkownika (s): </label>
+    <input type="range" id="offsetUserSlider" min="-5" max="5" step="0.01" value="0" oninput="updateUserOffset(this.value)">
+    <span id="offsetUserValue">0.00</span>s
+  </div>
+
+  <p id="status"></p>
+  <div id="waveformPlot" style="height: 400px;"></div>
+
+  <script>
+    let mediaRecorder;
+    let audioChunks = [];
+    let userBlob = null;
+    let offsetRef = 0;
+    let offsetUser = 0;
+    let lastRefBuffer = null;
+    let lastUserBuffer = null;
+    let isRecording = false;
+
+    document.addEventListener("keydown", function (event) {
+      if (event.code === "Space") {
+        event.preventDefault(); // żeby nie scrollować strony
+        if (!isRecording) {
+          startRecording();
+        } else {
+          stopRecording();
+        }
+      }
+    });
+
+    async function startRecording() {
+      document.getElementById("status").innerText = "🎙 Rozpoczynam nagrywanie...";
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+      mediaRecorder = new MediaRecorder(stream);
+      audioChunks = [];
+      isRecording = true;
+
+      mediaRecorder.ondataavailable = e => {
+        audioChunks.push(e.data);
+      };
+
+      mediaRecorder.start();
+    }
+
+    async function stopRecording() {
+      if (!mediaRecorder) return;
+
+      isRecording = false;
+      mediaRecorder.onstop = async () => {
+        userBlob = new Blob(audioChunks, { type: "audio/webm" });
+        const recordedBuffer = await userBlob.arrayBuffer();
+        const recordedAudio = await decodeAudio(recordedBuffer);
+
+        const refAudio = await fetch("/static/sounds/rhythm_1.wav")
+          .then(res => res.arrayBuffer())
+          .then(buffer => decodeAudio(buffer));
+
+        drawComparison(refAudio, recordedAudio);
+        document.getElementById("status").innerText = "✅ Gotowe!";
+      };
+
+      mediaRecorder.stop();
+      document.getElementById("status").innerText = "⏹ Zatrzymuję nagranie...";
+    }
+
+    function playUserRecording() {
+      if (!userBlob) {
+        alert("⚠️ Najpierw nagraj dźwięk.");
+        return;
+      }
+      const audioURL = URL.createObjectURL(userBlob);
+      const audio = new Audio(audioURL);
+      audio.play();
+    }
+
+    async function decodeAudio(arrayBuffer) {
+      const context = new (window.AudioContext || window.webkitAudioContext)();
+      return await context.decodeAudioData(arrayBuffer);
+    }
+
+    function extractAmplitudeData(buffer, sampleCount = 1000) {
+      const raw = buffer.getChannelData(0);
+      const sampleRate = buffer.sampleRate;
+      const step = Math.floor(raw.length / sampleCount);
+
+      const x = [], y = [];
+      for (let i = 0; i < sampleCount; i++) {
+        x.push(i * step / sampleRate);
+        y.push(raw[i * step]);
+      }
+
+      return { x, y };
+    }
+
+    function drawComparison(refBuffer, userBuffer) {
+      lastRefBuffer = refBuffer;
+      lastUserBuffer = userBuffer;
+      renderWaveforms();
+    }
+
+    function renderWaveforms() {
+      const refData = extractAmplitudeData(lastRefBuffer);
+      const userData = extractAmplitudeData(lastUserBuffer);
+
+      const trace1 = {
+        x: refData.x.map(t => t + offsetRef),
+        y: refData.y,
+        mode: "lines",
+        name: "Dźwięk wzorcowy",
+        line: { color: "black" }
+      };
+
+      const trace2 = {
+        x: userData.x.map(t => t + offsetUser),
+        y: userData.y,
+        mode: "lines",
+        name: "Dźwięk użytkownika",
+        line: { color: "red", width: 1 }
+      };
+
+      const layout = {
+        title: "Amplituda w czasie",
+        xaxis: { title: "Czas (s)" },
+        yaxis: { title: "Amplituda" }
+      };
+
+      Plotly.newPlot("waveformPlot", [trace1, trace2], layout);
+    }
+
+    function updateRefOffset(value) {
+      offsetRef = parseFloat(value);
+      document.getElementById("offsetRefValue").innerText = offsetRef.toFixed(2);
+      if (lastRefBuffer && lastUserBuffer) renderWaveforms();
+    }
+
+    function updateUserOffset(value) {
+      offsetUser = parseFloat(value);
+      document.getElementById("offsetUserValue").innerText = offsetUser.toFixed(2);
+      if (lastRefBuffer && lastUserBuffer) renderWaveforms();
+    }
+
+    function autoAlign() {
+      if (!lastRefBuffer || !lastUserBuffer) return alert("⚠️ Brak danych audio.");
+
+      const ref = lastRefBuffer.getChannelData(0);
+      const usr = lastUserBuffer.getChannelData(0);
+      const sampleRate = lastRefBuffer.sampleRate;
+
+      const maxShift = sampleRate * 2; // 2s
+      const windowSize = sampleRate * 3; // 3s
+
+      let maxCorr = -Infinity;
+      let bestShift = 0;
+
+      for (let shift = -maxShift; shift <= maxShift; shift += sampleRate * 0.01) {
+        let sum = 0;
+        for (let i = 0; i < windowSize; i++) {
+          const idxUsr = i + Math.floor(shift);
+          if (idxUsr >= 0 && idxUsr < usr.length && i < ref.length) {
+            sum += ref[i] * usr[idxUsr];
+          }
+        }
+        if (sum > maxCorr) {
+          maxCorr = sum;
+          bestShift = shift;
+        }
+      }
+
+      offsetUser = -bestShift / sampleRate;
+      document.getElementById("offsetUserSlider").value = offsetUser.toFixed(2);
+      document.getElementById("offsetUserValue").innerText = offsetUser.toFixed(2);
+      renderWaveforms();
+    }
+  </script>
+</body>
+</html>

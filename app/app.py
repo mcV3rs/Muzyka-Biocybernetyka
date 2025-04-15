@@ -6,5 +6,9 @@ app = Flask(__name__)
 def home():
     return render_template('index.html')
 
+@app.route('/compare-rythm')
+def compare_rythm():
+    return render_template('compare_rythm.html')
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
