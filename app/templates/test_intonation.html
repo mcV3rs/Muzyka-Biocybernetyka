@@ -1,0 +1,221 @@
+<!-- templates/test_intonation.html -->
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <title>Moduł Sprawdzania Intonacji</title>
+  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+  <style>
+    /* Styl identyczny ze stroną główną projektu */
+    body {
+      font-family: Arial, sans-serif;
+      padding: 2rem;
+      background-color: #f4f4f4;
+    }
+    h1, h2 {
+      color: #333;
+    }
+    section {
+      background-color: #fff;
+      padding: 1rem;
+      margin-bottom: 1.5rem;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    /* FFT plot */
+    #spectrumPlot {
+      margin-top: 1rem;
+      height: 300px;
+    }
+    /* Ogólne przyciski */
+    button {
+      margin: 0.3rem 0.5rem 0.3rem 0;
+      padding: 0.5rem 1rem;
+      font-size: 1rem;
+    }
+    /* Przyciski gamy: aktywny styl */
+    .note-btn.active {
+      background-color: #007bff;
+      color: white;
+      border: none;
+    }
+  </style>
+</head>
+<body>
+  <h1>Moduł Sprawdzania Intonacji</h1>
+
+  <!-- 1. Wybór dźwięku wzorcowego -->
+  <section>
+    <h2>1. Wybierz dźwięk wzorcowy</h2>
+    <div id="notesGroup">
+      <button class="note-btn active" data-interval="0">Do (C4)</button>
+      <button class="note-btn"       data-interval="2">Re (D4)</button>
+      <button class="note-btn"       data-interval="4">Mi (E4)</button>
+      <button class="note-btn"       data-interval="5">Fa (F4)</button>
+      <button class="note-btn"       data-interval="7">Sol (G4)</button>
+      <button class="note-btn"       data-interval="9">La (A4)</button>
+      <button class="note-btn"       data-interval="11">Si (B4)</button>
+      <button class="note-btn"       data-interval="12">Do (C5)</button>
+    </div>
+  </section>
+
+  <!-- 2. Kontrolki odtwarzania wzorca -->
+  <section>
+    <h2>2. Odtwarzanie wzorca</h2>
+    <button id="playRef">▶️ Odtwórz</button>
+    <button id="stopRef" disabled>⏹ Zatrzymaj</button>
+  </section>
+
+  <!-- 3. Kontrolki mikrofonu -->
+  <section>
+    <h2>3. Mikrofon</h2>
+    <button id="micOn">🎙 Włącz mikrofon</button>
+    <button id="micOff" disabled>⏹ Wyłącz mikrofon</button>
+  </section>
+
+  <!-- 4. Widmo częstotliwości -->
+  <section>
+    <h2>4. Widmo częstotliwości</h2>
+    <div id="spectrumPlot"></div>
+  </section>
+
+  <script>
+    // --- Web Audio API setup ---
+    const audioCtx   = new (window.AudioContext || window.webkitAudioContext)();
+    const rootFreq   = 261.63;        // C4
+    const FFT_SIZE   = 2048;
+    const BIN_COUNT  = FFT_SIZE / 2;
+    const sampleRate = audioCtx.sampleRate;
+    const zoomFactor = 1.5;
+    const freqBins   = Array.from({length: BIN_COUNT}, (_, i) => i * sampleRate / FFT_SIZE);
+
+    let refOsc, refGain, refAnalyser;
+    let micStream, micAnalyser, micSource;
+    let isRefPlaying    = false;
+    let currentInterval = 0;
+
+    // --- Plotly initialization ---
+    Plotly.newPlot('spectrumPlot', [
+      { x: freqBins, y: Array(BIN_COUNT).fill(0), name: 'Wzorzec', line: {color: 'black'} },
+      { x: freqBins, y: Array(BIN_COUNT).fill(0), name: 'Głos',    line: {color: 'red'}   }
+    ], {
+      margin: {t:20},
+      xaxis: {title: 'Częstotliwość (Hz)', range: [0, 1000]},
+      yaxis: {title: 'Amplituda'},
+      shapes: []
+    });
+
+    // --- Rysowanie FFT i oś symetrii ---
+    function drawSpectrum() {
+      const refData = new Uint8Array(BIN_COUNT);
+      const micData = new Uint8Array(BIN_COUNT);
+
+      if (refAnalyser) refAnalyser.getByteFrequencyData(refData);
+      if (micAnalyser) micAnalyser.getByteFrequencyData(micData);
+
+      Plotly.update('spectrumPlot', { y: [Array.from(refData), Array.from(micData)] });
+
+      if (refAnalyser) {
+        const maxI = refData.indexOf(Math.max(...refData));
+        if (maxI > 0 && maxI < BIN_COUNT - 1) {
+          const [y_m1, y0, y_p1] = [refData[maxI-1], refData[maxI], refData[maxI+1]];
+          const denom = (y_m1 - 2*y0 + y_p1);
+          const d = denom ? 0.5*(y_m1 - y_p1)/denom : 0;
+          const vertexFreq = (maxI + d) * sampleRate / FFT_SIZE;
+          const xMax       = Math.min(vertexFreq * zoomFactor, sampleRate / 2);
+          const ampMax     = Math.max(...refData);
+
+          Plotly.relayout('spectrumPlot', {
+            'xaxis.range': [0, xMax],
+            shapes: [{
+              type: 'line',
+              x0: vertexFreq, x1: vertexFreq,
+              y0: 0,          y1: ampMax,
+              line: {color:'green', width:2, dash:'dash'}
+            }]
+          });
+        }
+      }
+      requestAnimationFrame(drawSpectrum);
+    }
+    requestAnimationFrame(drawSpectrum);
+
+    // --- Obsługa przycisków gamy ---
+    document.querySelectorAll('.note-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        currentInterval = parseFloat(btn.dataset.interval);
+        // toggle active class
+        document.querySelectorAll('.note-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        // jeśli już gra, restart tonu
+        if (isRefPlaying) {
+          stopRefTone();
+          startRefTone();
+        }
+      });
+    });
+
+    // --- Start/Stop wzorca ---
+    const playRef = document.getElementById('playRef');
+    const stopRef = document.getElementById('stopRef');
+
+    function startRefTone() {
+      if (isRefPlaying) return;
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+
+      const freq = rootFreq * Math.pow(2, currentInterval / 12);
+      refOsc      = audioCtx.createOscillator();
+      refGain     = audioCtx.createGain();
+      refAnalyser = audioCtx.createAnalyser();
+      refAnalyser.fftSize = FFT_SIZE;
+
+      refOsc.type = 'sine';
+      refOsc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+
+      refOsc.connect(refGain);
+      refGain.connect(refAnalyser);
+      refGain.connect(audioCtx.destination);
+      refGain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+
+      refOsc.start();
+      isRefPlaying = true;
+      playRef.disabled = true;
+      stopRef.disabled = false;
+    }
+
+    function stopRefTone() {
+      if (!isRefPlaying) return;
+      refOsc.stop();
+      [refOsc, refGain, refAnalyser].forEach(n => n.disconnect());
+      isRefPlaying = false;
+      playRef.disabled = false;
+      stopRef.disabled = true;
+    }
+
+    playRef.addEventListener('click', startRefTone);
+    stopRef.addEventListener('click', stopRefTone);
+
+    // --- Obsługa mikrofonu ---
+    const micOnBtn  = document.getElementById('micOn');
+    const micOffBtn = document.getElementById('micOff');
+
+    micOnBtn.addEventListener('click', async () => {
+      if (audioCtx.state === 'suspended') await audioCtx.resume();
+      micStream   = await navigator.mediaDevices.getUserMedia({ audio: true });
+      micAnalyser = audioCtx.createAnalyser(); micAnalyser.fftSize = FFT_SIZE;
+      micSource   = audioCtx.createMediaStreamSource(micStream);
+      micSource.connect(micAnalyser);
+      micOnBtn.disabled  = true;
+      micOffBtn.disabled = false;
+    });
+
+    micOffBtn.addEventListener('click', () => {
+      if (micStream)   micStream.getTracks().forEach(t => t.stop());
+      if (micSource)   micSource.disconnect();
+      if (micAnalyser) micAnalyser.disconnect();
+      micOnBtn.disabled  = false;
+      micOffBtn.disabled = true;
+    });
+  </script>
+</body>
+</html>

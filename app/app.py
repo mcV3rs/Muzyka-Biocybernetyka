@@ -10,5 +10,10 @@ def home():
 def compare_rythm():
     return render_template('compare_rythm.html')
 
+
+@app.route('/test-intonation')
+def test_intonation():
+    return render_template('test_intonation.html')
+
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+    app.run(host="0.0.0.0", port=5000, debug=True)
